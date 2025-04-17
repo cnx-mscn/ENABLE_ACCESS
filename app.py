@@ -33,22 +33,44 @@ def veri_kaydet(veri):
 veri = veri_yukle()
 
 # ============ GİRİŞ ============ #
+import bcrypt
+
+# Kullanıcıları JSON'dan yükle
+def kullanicilari_yukle():
+    try:
+        with open("users.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+kullanicilar = kullanicilari_yukle()
+
+# === GİRİŞ === #
 if "giris" not in st.session_state:
     st.session_state.giris = None
+    st.session_state.kullanici = None
 
 if not st.session_state.giris:
     st.title("🔐 Giriş Yap")
-    tip = st.radio("Giriş tipi", ["Yönetici", "İşçi"])
+
+    kullanici_adi = st.text_input("Kullanıcı Adı")
+    sifre = st.text_input("Şifre", type="password")
+    
     if st.button("✅ Giriş"):
-        st.session_state.giris = tip
-        st.experimental_rerun()
-    st.stop()
+        if kullanici_adi in kullanicilar:
+            hashed = kullanicilar[kullanici_adi]["password"].encode("utf-8")
+            if bcrypt.checkpw(sifre.encode("utf-8"), hashed):
+                st.session_state.giris = kullanicilar[kullanici_adi]["role"]
+                st.session_state.kullanici = kullanici_adi
+                st.success("Giriş başarılı")
+                st.experimental_rerun()
+            else:
+                st.error("Hatalı şifre")
+        else:
+            st.error("Kullanıcı bulunamadı")
+    
     st.stop()
 
-if st.sidebar.button("🔁 Çıkış"):
-    st.session_state.giris = None
-    st.experimental_rerun()
-    st.stop()
 
 # ============ YÖNETİCİ ============ #
 if st.session_state.giris == "Yönetici":
