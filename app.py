@@ -72,6 +72,7 @@ if not st.session_state.giris:
     st.stop()
 
 
+
 # ============ YÖNETİCİ ============ #
 if st.session_state.giris == "Yönetici":
     st.title("🛠️ Yönetici Paneli")
