@@ -51,12 +51,12 @@ if "giris" not in st.session_state:
     st.session_state.kullanici = None
 
 if not st.session_state.giris:
-        secenek = st.radio("Seçenek", ["Giriş Yap", "Kayıt Ol"])
+    secenek = st.radio("Seçenek", ["Giriş Yap", "Kayıt Ol"])
 
     if secenek == "Giriş Yap":
         kullanici_adi = st.text_input("Kullanıcı Adı")
         sifre = st.text_input("Şifre", type="password")
-        
+
         if st.button("✅ Giriş"):
             if kullanici_adi in kullanicilar:
                 hashed = kullanicilar[kullanici_adi]["password"].encode("utf-8")
@@ -84,6 +84,10 @@ if not st.session_state.giris:
                 with open("users.json", "w", encoding="utf-8") as f:
                     json.dump(kullanicilar, f, ensure_ascii=False, indent=2)
                 st.success("Kayıt başarılı. Giriş yapabilirsiniz.")
+
+    st.stop()
+
+
 
     st.title("🔐 Giriş Yap")
 
