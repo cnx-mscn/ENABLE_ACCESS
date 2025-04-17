@@ -12,7 +12,7 @@ from reportlab.pdfgen import canvas
 from sklearn.cluster import KMeans
 
 # ============ AYARLAR ============ #
-API_KEY = "YOUR_API_KEY_HERE"  # Google API key
+API_KEY = "AIzaSyDwQVuPcON3rGSibcBrwhxQvz4HLTpF9Ws"  # Google API key
 JSON_FILE = "veriler.json"
 
 gmaps = googlemaps.Client(key=API_KEY)
