@@ -51,6 +51,40 @@ if "giris" not in st.session_state:
     st.session_state.kullanici = None
 
 if not st.session_state.giris:
+        secenek = st.radio("Seçenek", ["Giriş Yap", "Kayıt Ol"])
+
+    if secenek == "Giriş Yap":
+        kullanici_adi = st.text_input("Kullanıcı Adı")
+        sifre = st.text_input("Şifre", type="password")
+        
+        if st.button("✅ Giriş"):
+            if kullanici_adi in kullanicilar:
+                hashed = kullanicilar[kullanici_adi]["password"].encode("utf-8")
+                if bcrypt.checkpw(sifre.encode("utf-8"), hashed):
+                    st.session_state.giris = kullanicilar[kullanici_adi]["role"]
+                    st.session_state.kullanici = kullanici_adi
+                    st.success("Giriş başarılı")
+                    st.experimental_rerun()
+                else:
+                    st.error("Hatalı şifre")
+            else:
+                st.error("Kullanıcı bulunamadı")
+
+    elif secenek == "Kayıt Ol":
+        yeni_kullanici = st.text_input("Yeni Kullanıcı Adı")
+        yeni_sifre = st.text_input("Yeni Şifre", type="password")
+        rol = st.selectbox("Rol Seçin", ["Yönetici", "İşçi"])
+
+        if st.button("📝 Kayıt Ol"):
+            if yeni_kullanici in kullanicilar:
+                st.warning("Bu kullanıcı adı zaten var.")
+            else:
+                hashed_pw = bcrypt.hashpw(yeni_sifre.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+                kullanicilar[yeni_kullanici] = {"password": hashed_pw, "role": rol}
+                with open("users.json", "w", encoding="utf-8") as f:
+                    json.dump(kullanicilar, f, ensure_ascii=False, indent=2)
+                st.success("Kayıt başarılı. Giriş yapabilirsiniz.")
+
     st.title("🔐 Giriş Yap")
 
     kullanici_adi = st.text_input("Kullanıcı Adı")
