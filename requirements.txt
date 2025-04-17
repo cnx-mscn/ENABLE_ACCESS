@@ -1,0 +1,10 @@
+streamlit
+googlemaps
+haversine
+folium
+streamlit-folium
+pandas
+openpyxl
+reportlab
+plotly
+scikit-learn
