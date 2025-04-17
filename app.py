@@ -40,13 +40,17 @@ if not st.session_state.giris:
     st.title("🔐 Giriş Yap")
     tip = st.radio("Giriş tipi", ["Yönetici", "İşçi"])
     if st.button("✅ Giriş"):
-        st.session_state.giris = tip
-        st.experimental_rerun()
+    st.session_state.giris = tip
+    st.experimental_rerun()
     st.stop()
 
-if st.sidebar.button("🔁 Çıkış"):
-    st.session_state.giris = None
+    st.stop()
+
+if st.button("✅ Giriş"):
+    st.session_state.giris = tip
     st.experimental_rerun()
+    st.stop()
+)
 
 # ============ YÖNETİCİ ============ #
 if st.session_state.giris == "Yönetici":
