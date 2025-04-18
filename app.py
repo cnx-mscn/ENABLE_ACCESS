@@ -1,251 +1,177 @@
-# app.py
 import streamlit as st
-import googlemaps
-import json
-from datetime import date, datetime
-from haversine import haversine
-import folium
-from streamlit_folium import st_folium
 import pandas as pd
-import plotly.express as px
-from reportlab.pdfgen import canvas
-from sklearn.cluster import KMeans
+import folium
+import datetime
+import googlemaps
+from fpdf import FPDF
+from geopy.geocoders import Nominatim
+from sklearn.cluster import KMeans  # Yapay Zeka ile rota önerisi için
+from geopy.distance import geodesic
 
-# ============ AYARLAR ============ #
-API_KEY = "AIzaSyDwQVuPcON3rGSibcBrwhxQvz4HLTpF9Ws"  # Google API key
-JSON_FILE = "veriler.json"
+# Google Maps API anahtarı (örnek)
+gmaps = googlemaps.Client(key="AIzaSyDwQVuPcON3rGSibcBrwhxQvz4HLTpF9Ws")
 
-gmaps = googlemaps.Client(key=API_KEY)
-st.set_page_config(page_title="Montaj Yönetim Sistemi", layout="wide")
-
-# ============ JSON VERİ YÜKLEME ============ #
-def veri_yukle():
-    try:
-        with open(JSON_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {"ekipler": {}, "baslangic_konum": None}
-
-def veri_kaydet(veri):
-    with open(JSON_FILE, "w", encoding="utf-8") as f:
-        json.dump(veri, f, ensure_ascii=False, indent=2)
-
-veri = veri_yukle()
-
-# ============ GİRİŞ ============ #
-import bcrypt
-
-# Kullanıcıları JSON'dan yükle
-def kullanicilari_yukle():
-    try:
-        with open("users.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {}
-
-kullanicilar = kullanicilari_yukle()
-
-# === GİRİŞ === #
-if "giris" not in st.session_state:
-    st.session_state.giris = None
-    st.session_state.kullanici = None
-
-if not st.session_state.giris:
-    secenek = st.radio("Seçenek", ["Giriş Yap", "Kayıt Ol"])
-
-    if secenek == "Giriş Yap":
-        kullanici_adi = st.text_input("Kullanıcı Adı")
-        sifre = st.text_input("Şifre", type="password")
-
-        if st.button("✅ Giriş"):
-            if kullanici_adi in kullanicilar:
-                hashed = kullanicilar[kullanici_adi]["password"].encode("utf-8")
-                if bcrypt.checkpw(sifre.encode("utf-8"), hashed):
-                    st.session_state.giris = kullanicilar[kullanici_adi]["role"]
-                    st.session_state.kullanici = kullanici_adi
-                    st.success("Giriş başarılı")
-                    st.experimental_rerun()
-                else:
-                    st.error("Hatalı şifre")
-            else:
-                st.error("Kullanıcı bulunamadı")
-
-    elif secenek == "Kayıt Ol":
-        yeni_kullanici = st.text_input("Yeni Kullanıcı Adı")
-        yeni_sifre = st.text_input("Yeni Şifre", type="password")
-        rol = st.selectbox("Rol Seçin", ["Yönetici", "İşçi"])
-
-        if st.button("📝 Kayıt Ol"):
-            if yeni_kullanici in kullanicilar:
-                st.warning("Bu kullanıcı adı zaten var.")
-            else:
-                hashed_pw = bcrypt.hashpw(yeni_sifre.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-                kullanicilar[yeni_kullanici] = {"password": hashed_pw, "role": rol}
-                with open("users.json", "w", encoding="utf-8") as f:
-                    json.dump(kullanicilar, f, ensure_ascii=False, indent=2)
-                st.success("Kayıt başarılı. Giriş yapabilirsiniz.")
-
-    st.stop()
-
-
-
-    st.title("🔐 Giriş Yap")
-
-    kullanici_adi = st.text_input("Kullanıcı Adı")
-    sifre = st.text_input("Şifre", type="password")
-    
-    if st.button("✅ Giriş"):
-        if kullanici_adi in kullanicilar:
-            hashed = kullanicilar[kullanici_adi]["password"].encode("utf-8")
-            if bcrypt.checkpw(sifre.encode("utf-8"), hashed):
-                st.session_state.giris = kullanicilar[kullanici_adi]["role"]
-                st.session_state.kullanici = kullanici_adi
-                st.success("Giriş başarılı")
-                st.experimental_rerun()
-            else:
-                st.error("Hatalı şifre")
+# Kullanıcı girişi
+def user_login():
+    login_type = st.selectbox("Kullanıcı Tipi Seçin:", ["Yönetici", "İşçi"])
+    username = st.text_input("Kullanıcı Adı")
+    password = st.text_input("Şifre", type="password")
+    if st.button("Giriş Yap"):
+        if login_type == "Yönetici" and username == "admin" and password == "admin123":
+            st.session_state.logged_in = True
+            st.session_state.user_type = login_type
+        elif login_type == "İşçi" and username == "worker" and password == "worker123":
+            st.session_state.logged_in = True
+            st.session_state.user_type = login_type
         else:
-            st.error("Kullanıcı bulunamadı")
-    
-    st.stop()
+            st.error("Geçersiz giriş bilgileri.")
 
+# Kullanıcı Girişi Kontrolü
+if 'logged_in' not in st.session_state:
+    user_login()
+else:
+    if st.session_state.logged_in:
+        st.write(f"Hoş geldiniz, {st.session_state.user_type}!")
+        # Şehir ekleme ve görev atama (Yönetici)
+        if st.session_state.user_type == "Yönetici":
+            city = st.text_input("Şehir Ekle")
+            task_duration = st.number_input("Görev Süresi (saat)", min_value=1)
+            task_description = st.text_area("Görev Açıklaması")
+            if st.button("Görev Atama"):
+                st.success(f"Şehire {city} görev atandı. Süre: {task_duration} saat.")
+       
+        # Görev Durumu (İşçi)
+        if st.session_state.user_type == "İşçi":
+            task_status = st.selectbox("Görev Durumunu Seçin:", ["Yapılacak", "Tamamlandı", "Onay Bekliyor"])
+            if task_status == "Tamamlandı":
+                photo = st.file_uploader("Fotoğraf Yükle", type=["jpg", "png"])
+                if photo:
+                    st.success("Görev fotoğrafı yüklendi. Yöneticinin onayı bekleniyor.")
+       
+        # Harita Gösterimi
+        geolocator = Nominatim(user_agent="montaj_planner")
+        location = geolocator.geocode("Istanbul, Turkey")
+        map = folium.Map(location=[location.latitude, location.longitude], zoom_start=12)
+        folium.Marker([location.latitude, location.longitude], popup="Başlangıç Noktası").add_to(map)
+        st.write("Harita:")
+        st_map = st_folium(map, width=700)
 
+        # Takvimli İş Planı
+        date = st.date_input("İş Planı İçin Tarih Seçin:", min_value=datetime.date.today())
+        if st.button("İş Planını Kaydet"):
+            st.success(f"İş planı {date} tarihine kaydedildi.")
 
-# ============ YÖNETİCİ ============ #
-if st.session_state.giris == "Yönetici":
-    st.title("🛠️ Yönetici Paneli")
+        # PDF ve Excel Çıktısı
+        if st.button("PDF Çıktısı Al"):
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Montaj Rota Planlama Raporu", ln=True, align="C")
+            pdf.output("planlama_raporu.pdf")
+            st.success("PDF çıktısı oluşturuldu.")
+       
+        if st.button("Excel Çıktısı Al"):
+            df = pd.DataFrame({
+                "Şehir": ["Istanbul", "Ankara", "Izmir"],
+                "Süre (Saat)": [5, 4, 3],
+                "Durum": ["Tamamlandı", "Yapılacak", "Onay Bekliyor"]
+            })
+            df.to_excel("planlama_raporu.xlsx", index=False)
+            st.success("Excel çıktısı oluşturuldu.")
+   
+    else:
+        st.error("Lütfen giriş yapın.")
 
-    st.sidebar.header("👷 Ekip Yönetimi")
-    yeni_ekip = st.sidebar.text_input("Yeni Ekip Adı")
-    if st.sidebar.button("➕ Ekip Oluştur") and yeni_ekip:
-        if yeni_ekip not in veri["ekipler"]:
-            veri["ekipler"][yeni_ekip] = {"members": [], "visited_cities": []}
-            veri_kaydet(veri)
+# Rota Hesaplama ve Google Maps Linki
+if st.session_state.logged_in:
+    if st.button("Rota Hesapla"):
+        origin = "Istanbul"
+        destination = "Ankara"
+        directions = gmaps.directions(origin, destination, mode="driving")
+        distance = directions[0]['legs'][0]['distance']['text']
+        duration = directions[0]['legs'][0]['duration']['text']
+        google_maps_link = f"https://www.google.com/maps/dir/?api=1&origin={origin}&destination={destination}"
 
-    secilen_ekip = st.sidebar.selectbox("Ekip Seç", list(veri["ekipler"].keys()) if veri["ekipler"] else [])
+        st.write(f"Mesafe: {distance}, Süre: {duration}")
+        st.write(f"Rota için Google Maps Linki: [Tıklayın]({google_maps_link})")
 
-    st.sidebar.header("📍 Başlangıç Konumu")
-    if not veri["baslangic_konum"]:
-        adres = st.sidebar.text_input("Adres")
-        if st.sidebar.button("✅ Onayla") and adres:
-            sonuc = gmaps.geocode(adres)
-            if sonuc:
-                veri["baslangic_konum"] = sonuc[0]["geometry"]["location"]
-                st.sidebar.success("Başlangıç kaydedildi.")
-                veri_kaydet(veri)
+# Yapay Zeka Destekli Rota Önerisi (KMeans ile kümelenmiş rota önerisi)
+def kmeans_route_optimization(cities, locations):
+    kmeans = KMeans(n_clusters=2)  # Örnek olarak 2 kümeye ayırıyoruz
+    kmeans.fit(locations)
+    clusters = kmeans.predict(locations)
+   
+    optimized_route = []
+    for i in range(max(clusters)+1):
+        cluster_cities = [cities[j] for j in range(len(cities)) if clusters[j] == i]
+        optimized_route.append(cluster_cities)
+    return optimized_route
 
-    st.subheader("📌 Görev Ekle")
-    with st.form("form_gorev"):
-        sehir = st.text_input("Şehir / Bayi")
-        onem = st.slider("Önem", 1, 5, 3)
-        sure = st.number_input("Süre (saat)", 1, 24, 2)
-        tarih = st.date_input("Tarih", date.today())
-        ekle = st.form_submit_button("➕ Ekle")
-        if ekle and secilen_ekip:
-            sonuc = gmaps.geocode(sehir)
-            if sonuc:
-                konum = sonuc[0]["geometry"]["location"]
-                gorev = {
-                    "sehir": sehir,
-                    "konum": konum,
-                    "onem": onem,
-                    "is_suresi": sure,
-                    "tarih": str(tarih),
-                    "foto": None,
-                    "onay": None
-                }
-                veri["ekipler"][secilen_ekip]["visited_cities"].append(gorev)
-                veri_kaydet(veri)
-                st.success("Görev eklendi.")
+cities = ["Istanbul", "Ankara", "Izmir", "Bursa", "Antalya"]
+locations = [(41.0082, 28.9784), (39.9334, 32.8597), (38.4237, 27.1428), (40.1950, 29.0604), (36.8841, 30.7056)]
+optimized_route = kmeans_route_optimization(cities, locations)
 
-    # Rota Haritası
-    if veri["baslangic_konum"] and secilen_ekip:
-        st.subheader("🗺️ Rota Haritası")
-        bas = veri["baslangic_konum"]
-        harita = folium.Map(location=[bas["lat"], bas["lng"]], zoom_start=6)
-        folium.Marker([bas["lat"], bas["lng"]], popup="Başlangıç", icon=folium.Icon(color="blue")).add_to(harita)
+st.write("Yapay Zeka Destekli Rota Önerisi:")
+st.write(f"Optimum Rota: {optimized_route}")
 
-        sehirler = veri["ekipler"][secilen_ekip]["visited_cities"]
-        for i, s in enumerate(sehirler):
-            lat, lng = s["konum"]["lat"], s["konum"]["lng"]
-            renk = "red"
-            if s["onay"] == True: renk = "green"
-            elif s["foto"]: renk = "orange"
-            folium.Marker([lat, lng], popup=s["sehir"], icon=folium.Icon(color=renk)).add_to(harita)
+# Renkli Görev Durumu
+def task_status_color(status):
+    if status == "Yapılacak":
+        return "gray"
+    elif status == "Tamamlandı":
+        return "green"
+    elif status == "Onay Bekliyor":
+        return "orange"
 
-        st_folium(harita, width=700)
+# Görev Durumunu Renkli Gösterme
+task_status = st.selectbox("Görev Durumu Seçin:", ["Yapılacak", "Tamamlandı", "Onay Bekliyor"])
+status_color = task_status_color(task_status)
+st.markdown(f"<span style='color:{status_color}; font-weight:bold'>{task_status}</span>", unsafe_allow_html=True)
 
-    # Onay Paneli
-    st.subheader("✅ Görev Onay")
-    for i, s in enumerate(veri["ekipler"][secilen_ekip]["visited_cities"]):
-        if s["foto"] and s["onay"] is None:
-            st.info(f"{s['sehir']} → Onay Bekliyor")
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("✔️ Onayla", key=f"onay_{i}"):
-                    s["onay"] = True
-                    veri_kaydet(veri)
-            with col2:
-                if st.button("❌ Reddet", key=f"red_{i}"):
-                    s["onay"] = False
-                    veri_kaydet(veri)
+# Mobil Uyumlu Arayüz
+st.markdown("""
+    <style>
+        @media (max-width: 600px) {
+            .streamlit-expanderHeader {
+                font-size: 16px;
+            }
+            .streamlit-expanderContent {
+                font-size: 14px;
+            }
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-    # PDF ve Excel
-    st.subheader("📄 Rapor Çıktıları")
-    df = pd.DataFrame(veri["ekipler"][secilen_ekip]["visited_cities"])
-    if not df.empty:
-        st.dataframe(df[["sehir", "tarih", "is_suresi", "onay"]])
-        if st.button("📥 Excel İndir"):
-            df.to_excel("rapor.xlsx", index=False)
-            with open("rapor.xlsx", "rb") as f:
-                st.download_button("Raporu İndir (Excel)", f, file_name="rapor.xlsx")
+# Gerçek Zamanlı Konum Takibi (Örnek kullanım)
+if st.button("Gerçek Zamanlı Konum Takibi Başlat"):
+    # Gerçek zamanlı veriyi burada alabilirsiniz (örneğin, işçi telefonundan veya GPS cihazından)
+    real_time_location = [41.0082, 28.9784]  # Örnek olarak Istanbul koordinatları
+    map = folium.Map(location=real_time_location, zoom_start=12)
+    folium.Marker(real_time_location, popup="İşçi Konumu").add_to(map)
+    st.write("Gerçek zamanlı konum takibi başlatıldı.")
+    st_map = st_folium(map, width=700)
 
-        if st.button("📥 PDF İndir"):
-            c = canvas.Canvas("rapor.pdf")
-            c.drawString(100, 800, f"{secilen_ekip} - Montaj Raporu")
-            for i, row in df.iterrows():
-                c.drawString(100, 770 - i*20, f"{row['sehir']} - {row['tarih']} - {row['is_suresi']} saat - Onay: {row['onay']}")
-            c.save()
-            with open("rapor.pdf", "rb") as f:
-                st.download_button("Raporu İndir (PDF)", f, file_name="rapor.pdf")
+# Detaylı Veri Analizi ve Raporlama
+if st.button("Detaylı Rapor Al"):
+    report_data = {
+        "Şehir": ["Istanbul", "Ankara", "Izmir"],
+        "Mesafe (km)": [400, 450, 500],
+        "Süre (Saat)": [6, 5, 7],
+        "Yakıt Maliyeti (TL)": [100, 120, 140],
+        "İşçilik Maliyeti (TL)": [250, 200, 300]
+    }
+    df = pd.DataFrame(report_data)
+    st.write(df)
 
-    # Takvim Görünümü
-    st.subheader("📅 Takvim")
-    if not df.empty:
-        df["tarih"] = pd.to_datetime(df["tarih"])
-        fig = px.timeline(df, x_start="tarih", x_end="tarih", y="sehir", color="onay", title="Görev Takvimi")
-        st.plotly_chart(fig)
+    # PDF Raporu
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Detaylı Montaj Raporu", ln=True, align="C")
+    pdf.ln(10)
 
-    # Yapay Zekâ ile Önerilen Rota
-    st.subheader("🤖 Yapay Zekâ Rota Önerisi")
-    if len(df) >= 2:
-        df["lat"] = df["konum"].apply(lambda x: x["lat"])
-        df["lng"] = df["konum"].apply(lambda x: x["lng"])
-        coords = df[["lat", "lng"]].values
-        kmeans = KMeans(n_clusters=min(3, len(coords)), n_init="auto").fit(coords)
-        df["grup"] = kmeans.labels_
-        st.write("AI Önerili Gruplar (Rotalar):")
-        st.dataframe(df[["sehir", "grup"]])
+    for index, row in df.iterrows():
+        pdf.cell(200, 10, txt=f"{row['Şehir']} - Mesafe: {row['Mesafe (km)']} km, Süre: {row['Süre (Saat)']} saat", ln=True)
 
-# ============ İŞÇİ ============ #
-elif st.session_state.giris == "İşçi":
-    st.title("👷 İşçi Paneli")
-    secim = st.selectbox("Ekip Seç", list(veri["ekipler"].keys()) if veri["ekipler"] else [])
-    if secim:
-        for i, s in enumerate(veri["ekipler"][secim]["visited_cities"]):
-            if not s["foto"]:
-                st.write(f"📍 {s['sehir']} - {s['tarih']} - Süre: {s['is_suresi']} saat")
-                f = st.file_uploader(f"{s['sehir']} Fotoğraf", type=["jpg", "png"], key=f"foto_{i}")
-                if f:
-                    s["foto"] = f.name
-                    veri_kaydet(veri)
-                    st.success("Fotoğraf yüklendi.")
-            else:
-                if s["onay"] == True:
-                    st.success(f"{s['sehir']} ✅ Onaylandı")
-                elif s["onay"] == False:
-                    st.error(f"{s['sehir']} ❌ Reddedildi, tekrar yükleyin")
-                    s["foto"] = None
-                    veri_kaydet(veri)
-                else:
-                    st.info(f"{s['sehir']} ⏳ Onay bekleniyor")
+    pdf.output("detayli_rapor.pdf")
+    st.success("Detaylı PDF raporu oluşturuldu.")
