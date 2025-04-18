@@ -9,3 +9,4 @@ reportlab
 plotly
 scikit-learn
 bcrypt
+fpdf
